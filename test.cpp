@@ -9,7 +9,7 @@ int main(){
     system("rm victim3");
     system("g++ -o virus virus.cpp -w");
     system("cp virus seed");
-    system("printf '/xde/xad/xbe/xef' >> seed");
+    system("printf '\xde\xad\xbe\xef' >> seed");
     system("cat host >> seed");
     system("ls -l virus");
     system("ls -l host");
@@ -18,7 +18,7 @@ int main(){
     system("cp /bin/ls ./victim1");
     system("cp /usr/bin/wc ./victim2");
     system("cp /usr/bin/file ./victim3");
-    system("chmod ugo-x ./victim1");
-    system("chmod ugo-x ./victim2");
-    system("chmod ugo-x ./victim3");
+    system("chmod 0777 ./victim1");
+    system("chmod 0777 ./victim2");
+    system("chmod 0777 ./victim3");
 }
